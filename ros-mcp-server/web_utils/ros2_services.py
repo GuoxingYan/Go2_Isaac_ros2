@@ -1,3 +1,4 @@
+# 服务采用请求响应通信；本图表示服务提供关系，不是机器人运动学结构。
 import json
 from server import (
     get_list_services, get_service_type, get_service_detail, get_service_nodes)
@@ -15,6 +16,7 @@ def pretty_format(data) -> str:
         return str(data)
 
 def view_list_services():
+    """查询服务下拉列表，失败时返回空列表。"""
     try:
         result = get_list_services()
         return result.get("services", [])
@@ -23,6 +25,7 @@ def view_list_services():
         return []
 
 def get_service_operations() -> list[str]:
+    """返回页面选项；当前 Interface Show 在执行函数中尚无对应分支。"""
     return [
         "View Type",
         "View Detail (req/resp structures)",
@@ -31,6 +34,7 @@ def get_service_operations() -> list[str]:
     ]
 
 def execute_service_operation(service: str, operation: str):
+    """查询服务类型、字段或提供者，再转换为网页文本。"""
     if not service and operation != "View All Services Detail":
         return "Please select a service."
     if not operation:
@@ -55,6 +59,7 @@ def execute_service_operation(service: str, operation: str):
     
 
 def build_service_graph_snapshot(selected_services=None, show_types=True):
+    """生成服务关系快照；当前读取 nodes 字段，与底层返回的 providers 不一致。"""
     G = nx.DiGraph()
     services = selected_services if selected_services else view_list_services()
 
@@ -131,4 +136,3 @@ def build_service_graph_snapshot(selected_services=None, show_types=True):
     plt.savefig(tmp_png.name, format="png", bbox_inches="tight")
     plt.close()
     return tmp_png.name
-

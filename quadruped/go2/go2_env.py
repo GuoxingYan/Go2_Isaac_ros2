@@ -19,6 +19,7 @@ import quadruped.go2.go2_ctrl as go2_ctrl
 
 @configclass
 class Go2SimCfg(InteractiveSceneCfg):
+    """声明地面、光照、Go2 关节系统与状态传感器，由 Isaac Lab 实例化到 USD 场景。"""
     # ground plane
     ground = AssetBaseCfg(
         prim_path="/World/ground",
@@ -45,11 +46,14 @@ class Go2SimCfg(InteractiveSceneCfg):
 
     # Go2 Robot
     unitree_go2: ArticulationCfg = UNITREE_GO2_CFG.replace(prim_path="{ENV_REGEX_NS}/Go2")
+    # Articulation 是由刚体和关节连接的系统；ENV_REGEX_NS 用于匹配多个 env_i 实例。
+    # USD prim 路径是场景树地址，不是磁盘路径，也不等同于 ROS 话题名。
     # Go2 foot contact sensor
     contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Go2/.*_foot", history_length=3, track_air_time=True)
 
     # Go2 height scanner
     height_scanner = RayCasterCfg(
+        # 向地面发射规则网格射线，得到局部高度；它不是发布点云的 RTX 激光雷达。
         prim_path="{ENV_REGEX_NS}/Go2/base",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20)), 
         attach_yaw_only=True,
@@ -61,6 +65,7 @@ class Go2SimCfg(InteractiveSceneCfg):
 @configclass
 class ActionsCfg:
     """Action specifications for the environment."""
+    # 关节位置动作经缩放并按框架默认规则叠加默认姿态，再交给资产的执行器跟踪。
     joint_pos = mdp.JointPositionActionCfg(asset_name="unitree_go2", joint_names=[".*"])
 
 @configclass
@@ -72,6 +77,8 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
+        # 已训练网络把每个输入位置当成固定物理量，不能随意交换这些字段的声明顺序。
+        # projected_gravity 是机身坐标系中的重力方向，帮助策略判断身体倾斜。
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel,
                                params={"asset_cfg": SceneEntityCfg(name="unitree_go2")})
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel,
@@ -94,6 +101,7 @@ class ObservationsCfg:
                               clip=(-1.0, 1.0))
 
         def __post_init__(self) -> None:
+            """关闭观测扰动并顺序拼接各项，形成批量策略输入张量。"""
             self.enable_corruption = False
             self.concatenate_terms = True
 
@@ -103,6 +111,7 @@ class ObservationsCfg:
 @configclass
 class CommandsCfg:
     """Command specifications for the MDP."""
+    # 此管理器的随机速度范围全为零；实际遥控目标来自上面的 go2_ctrl.base_vel_cmd。
     base_vel_cmd = mdp.UniformVelocityCommandCfg(
         asset_name="unitree_go2",
         resampling_time_range=(0.0, 0.0),
@@ -153,6 +162,7 @@ class Go2RSLEnvCfg(ManagerBasedRLEnvCfg):
     curriculum = CurriculumCfg()
 
     def __post_init__(self):
+        """设置视角、物理时间步与关节动作尺度；入口随后会覆盖控制分频和渲染间隔。"""
         # viewer settings
         self.viewer.eye = [-4.0, 0.0, 5.0]
         self.viewer.lookat = [0.0, 0.0, 0.0]
@@ -162,6 +172,7 @@ class Go2RSLEnvCfg(ManagerBasedRLEnvCfg):
 
         # simulation settings
         self.sim.dt = 0.005  # sim step every 
+        # dt 属于物理求解时钟；decimation 属于策略更新时钟，二者相乘才是一步环境时间。
         self.sim.render_interval = self.decimation  
         self.sim.disable_contact_processing = True
         self.sim.render.antialiasing_mode = None
@@ -176,6 +187,7 @@ class Go2RSLEnvCfg(ManagerBasedRLEnvCfg):
             self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
 def camera_follow(env):
+    """让 GUI 观察视角跟随第 0 台 Go2 的位置与偏航，不改变机器人前置相机。"""
     # Remove conditional check and always use indexed naming
     robot_position = env.unwrapped.scene[f"unitree_go2"].data.root_state_w[0, :3].cpu().numpy()
     robot_orientation = env.unwrapped.scene[f"unitree_go2"].data.root_state_w[0, 3:7].cpu().numpy()

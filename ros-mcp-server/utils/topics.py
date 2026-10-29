@@ -1,3 +1,5 @@
+# advertise/publish/subscribe 是 rosbridge 的 JSON 操作，/rosapi/* 用于查询 ROS 图。
+# 发布成功只表示消息已发送，不等于机器人已到达目标位置。
 from .websocket_manager import WebSocketManager, parse_json
 from typing import Optional
 import time
@@ -611,6 +613,7 @@ def subscribe_for_trigger(
     op_func = ops.get(comparison, operator.eq)
 
     def get_field(msg, field_path):
+        """沿点分隔路径读取嵌套消息字典，不访问 Python 对象属性。"""
         fields = field_path.split(".")
         val = msg
         for f in fields:

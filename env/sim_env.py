@@ -1,3 +1,4 @@
+# USD 场景由 prim 组成；Xform 是可承载位姿的节点，引用 USD 会引入其场景内容。
 from isaacsim.core.utils.prims import define_prim, get_prim_at_path
 try:
     import isaacsim.storage.native as nucleus_utils
@@ -9,12 +10,16 @@ from env.terrain_cfg import HfUniformDiscreteObstaclesTerrainCfg
 import omni.replicator.core as rep
 
 def add_semantic_label():
+    """给指定地面 prim 附加 floor 类别，供渲染语义分割读取。"""
+    # 此路径为 /World/GroundPlane，而机器人配置创建的是 /World/ground；应在场景树核对。
     ground_plane = rep.get.prims("/World/GroundPlane")
     with ground_plane:
     # Add a semantic label
         rep.modify.semantics([("class", "floor")])
 
 def create_obstacle_env():
+    """将程序生成的离散障碍高度场导入场景，作为共享障碍地形。"""
+    # TerrainGenerator 负责生成网格，TerrainImporter 负责把网格及碰撞配置放入仿真。
     add_semantic_label()
     # Terrain
     terrain = TerrainImporterCfg(
@@ -41,6 +46,7 @@ def create_obstacle_env():
 
 
 def create_warehouse_env():
+    """从 Isaac 资产根目录引用仓库 USD；资产获取可能涉及网络或本地缓存。"""
     add_semantic_label()
     assets_root_path = nucleus_utils.get_assets_root_path()
     prim = get_prim_at_path("/World/Warehouse")
@@ -49,6 +55,7 @@ def create_warehouse_env():
     prim.GetReferences().AddReference(asset_path)
 
 def create_hospital_env():
+    """在 World 下创建变换节点并引用医院 USD 场景。"""
     add_semantic_label()
     assets_root_path = nucleus_utils.get_assets_root_path()
     prim = get_prim_at_path("/World/Hospital")
@@ -57,6 +64,7 @@ def create_hospital_env():
     prim.GetReferences().AddReference(asset_path)
 
 def create_office_env():
+    """引用办公室 USD 场景，机器人本身仍由 quadruped 环境配置创建。"""
     add_semantic_label()
     assets_root_path = nucleus_utils.get_assets_root_path()
     prim = get_prim_at_path("/World/Office")
@@ -65,6 +73,7 @@ def create_office_env():
     prim.GetReferences().AddReference(asset_path)
 
 def create_rivermark_env():
+    """引用 Rivermark 户外场景；不改变已加载的机器人控制策略。"""
     add_semantic_label()
     assets_root_path = nucleus_utils.get_assets_root_path()
     prim = get_prim_at_path("/World/Outdoor")
@@ -73,6 +82,7 @@ def create_rivermark_env():
     prim.GetReferences().AddReference(asset_path)
 
 def create_terrain_env():
+    """引用预制 slope.usd 坡地；此入口不同于程序化障碍高度场生成器。"""
     add_semantic_label()
     assets_root_path = nucleus_utils.get_assets_root_path()
     prim = get_prim_at_path("/World/Terrains")

@@ -19,6 +19,7 @@ import quadruped.spot.spot_ctrl as spot_ctrl
 
 @configclass
 class SpotSimCfg(InteractiveSceneCfg):
+    """声明 Spot 的共享地面、灯光、关节系统与足端接触传感器。"""
     # ground plane
     ground = AssetBaseCfg(
         prim_path="/World/ground",
@@ -44,6 +45,7 @@ class SpotSimCfg(InteractiveSceneCfg):
 
     # Spot Robot
     spot: ArticulationCfg = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/spot")
+    # 环境命名空间会展开为多个 env_i；场景字典中的资产键为 spot。
     
     # Spot foot contact sensor
     contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/spot/.*_foot", history_length=3, track_air_time=True)
@@ -61,6 +63,7 @@ class SpotSimCfg(InteractiveSceneCfg):
 @configclass
 class ActionsCfg:
     """Action specifications for the environment."""
+    # 策略动作是关节位置控制量，不是直接修改机身位置；执行器和物理引擎决定实际运动。
     joint_pos = mdp.JointPositionActionCfg(asset_name="spot", joint_names=[".*"])
 
 @configclass
@@ -72,6 +75,7 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
+        # 状态、重力方向、目标速度、关节状态和上一次动作的顺序必须保持训练时约定。
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel,
                                params={"asset_cfg": SceneEntityCfg(name="spot")})
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel,
@@ -94,6 +98,7 @@ class ObservationsCfg:
                               clip=(-1.0, 1.0))
 
         def __post_init__(self) -> None:
+            """关闭噪声并把观测项拼成单个策略输入，保持推理输入可重复。"""
             self.enable_corruption = False
             self.concatenate_terms = True
 
@@ -103,6 +108,7 @@ class ObservationsCfg:
 @configclass
 class CommandsCfg:
     """Command specifications for the MDP."""
+    # 实际速度目标由 spot_ctrl 的张量提供，此零范围命令管理器不是遥控输入来源。
     base_vel_cmd = mdp.UniformVelocityCommandCfg(
         asset_name="spot",
         resampling_time_range=(0.0, 0.0),
@@ -153,6 +159,7 @@ class SpotRSLEnvCfg(ManagerBasedRLEnvCfg):
     curriculum = CurriculumCfg()
 
     def __post_init__(self):
+        """配置 200 Hz 物理步、初始视角和动作尺度；main.py 再决定控制分频。"""
         # viewer settings
         self.viewer.eye = [-4.0, 0.0, 5.0]
         self.viewer.lookat = [0.0, 0.0, 0.0]
@@ -176,6 +183,7 @@ class SpotRSLEnvCfg(ManagerBasedRLEnvCfg):
         #     self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
 def camera_follow(env):
+    """调整 GUI 视角跟随第 0 台 Spot；将 Isaac 的 wxyz 四元数转为 SciPy 的 xyzw。"""
     # Remove conditional check and always use indexed naming
     robot_position = env.unwrapped.scene[f"spot"].data.root_state_w[0, :3].cpu().numpy()
     robot_orientation = env.unwrapped.scene[f"spot"].data.root_state_w[0, 3:7].cpu().numpy()

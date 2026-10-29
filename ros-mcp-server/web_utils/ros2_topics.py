@@ -1,3 +1,4 @@
+# 这里展示的是 ROS 节点和话题关系，不是 USD 场景树或机器人关节树。
 import json
 from server import (
     get_list_topics, get_topic_type, get_topic_message, get_topic_publishers, get_topic_subscribers,get_echo_topic_once)
@@ -31,6 +32,7 @@ def extract_nodes(data, key):
     return data.get(key, [])  # key = "publishers" or "subscribers"
     
 def view_list_topics():
+    """获取网页下拉框的话题列表，查询失败时返回空列表。"""
     try:
         result = get_list_topics()
         return result.get("topics", [])
@@ -39,9 +41,11 @@ def view_list_topics():
         return []
 
 def get_topic_operations() -> list[str]:
+    """返回页面支持的话题查询操作。"""
     return ["View Type", "View Message Definition", "View Publishers", "View Subscribers", "Echo"]
 
 def execute_topic_operation(topic: str, operation: str):
+    """将页面选项映射为 ROS 查询，再格式化结果。"""
     if not topic:
         return "Please select a topic."
     if not operation:
@@ -73,6 +77,7 @@ def execute_topic_operation(topic: str, operation: str):
     
 
 def build_ros_graph_snapshot(selected_topics=None):
+    """绘制发布节点→话题→订阅节点关系，将临时 PNG 路径交给 Gradio。"""
     G = nx.DiGraph()
     topics = selected_topics if selected_topics else view_list_topics()
     

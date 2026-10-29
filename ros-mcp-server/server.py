@@ -1,3 +1,5 @@
+# MCP 将注册工具暴露给模型客户端，实际 ROS 操作在 utils 中经 rosbridge 完成。
+# 本入口使用 stdio 传输，与主仿真的 rclpy 节点、网页 HTTP 服务分别运行。
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
@@ -24,12 +26,14 @@ ws_manager = WebSocketManager(
 
 @mcp.tool(description=("Fetch available topics from the ROS bridge.     Example:get_topics()"))
 def get_list_topics() -> dict:
+    """通过 rosapi 查询 ROS 图中的话题及其消息类型。"""
     return list_topics(ws_manager)
 
 
 @mcp.tool(
     description=("Get the type for a specific topic.    Example: get_topic_type('/cmd_vel')"))
 def get_topic_type(topic: str) -> dict:
+    """查询指定话题的消息类型，以便正确构造发布或订阅请求。"""
     return topic_type(ws_manager, topic)
 
 @mcp.tool(
@@ -39,6 +43,7 @@ def get_topic_type(topic: str) -> dict:
     )
 )
 def get_topic_message(message_type: str) -> dict:
+    """查询消息类型的字段结构；类型名称与话题名称是不同概念。"""
     return topic_message(ws_manager, message_type)
 
 
@@ -49,6 +54,7 @@ def get_topic_message(message_type: str) -> dict:
     )
 )
 def get_topic_publishers(topic: str) -> dict:
+    """查询向该话题发送消息的节点列表。"""
     return topic_publishers(ws_manager, topic)
 
 
@@ -59,6 +65,7 @@ def get_topic_publishers(topic: str) -> dict:
     )
 )
 def get_topic_subscribers(topic: str) -> dict:
+    """查询接收该话题消息的节点列表。"""
     return topic_subscribers(ws_manager, topic)
 
 
@@ -78,6 +85,7 @@ def get_subscribe_once(
     queue_length: Optional[int] = None,
     throttle_rate_ms: Optional[int] = None,
 ) -> dict:
+    """订阅并返回首条消息；超时为秒，消息节流间隔为毫秒。"""
     return subscribe_once(ws_manager, topic, msg_type, timeout, queue_length, throttle_rate_ms)
 
 
@@ -89,6 +97,7 @@ def get_subscribe_once(
     )
 )
 def get_publish_once(topic: str = "", msg_type: str = "", msg: dict = {}) -> dict:
+    """发送一次 ROS 消息；对速度命令而言，需要另发零速度才能主动停止。"""
     return publish_once(ws_manager, topic, msg_type, msg)
 
 @mcp.tool(
@@ -107,6 +116,7 @@ def get_subscribe_for_duration(
     queue_length: Optional[int] = None,
     throttle_rate_ms: Optional[int] = None,
 ) -> dict:
+    """按时间或条数上限采集消息，可通过队列大小和节流间隔控制数据量。"""
     
     return subscribe_for_duration(ws_manager, topic, msg_type, duration,  max_messages, queue_length, throttle_rate_ms)
 
@@ -120,6 +130,7 @@ def get_subscribe_for_duration(
 )
 def get_publish_for_duration(
     topic: str = "", msg_type: str = "", messages: list = [], durations: list = []) -> dict:
+    """依序发送消息并等待对应时长；时长是发送间隔，不保证精确运动距离。"""
     return publish_for_duration (ws_manager, topic, msg_type, messages, durations)
 
 
@@ -131,6 +142,7 @@ def get_publish_for_duration(
     )
 )
 def get_echo_topic_once(topic: str = "", msg_type: str = "") -> dict:
+    """回显话题的一条消息，返回消息字段字典。"""
     return echo_topic_once(ws_manager, topic, msg_type)
 
 
@@ -144,6 +156,7 @@ def get_echo_topic_once(topic: str = "", msg_type: str = "") -> dict:
 
 @mcp.tool(description=("Get list of all available ROS services.\nExample:\nget_services()"))
 def get_list_services() -> dict:
+    """列出 ROS 服务；服务是一次请求对应一次响应的接口。"""
     return list_services(ws_manager)
 
 @mcp.tool(
@@ -153,6 +166,7 @@ def get_list_services() -> dict:
     )
 )
 def get_list_services_detail() -> dict:
+    """逐个查询服务类型与提供节点，服务较多时会进行多次网络往返。"""
     return list_services_detail(ws_manager)
 
 @mcp.tool(
@@ -161,6 +175,7 @@ def get_list_services_detail() -> dict:
     )
 )
 def get_service_type(service: str) -> dict:
+    """查询指定服务的接口类型。"""
     return service_type(ws_manager, service)
 
 
@@ -171,6 +186,7 @@ def get_service_type(service: str) -> dict:
     )
 )
 def get_service_detail(service_type: str) -> dict:
+    """获取服务类型的请求和响应字段结构。"""
     return service_detail(ws_manager, service_type)
 
 @mcp.tool(
@@ -180,6 +196,7 @@ def get_service_detail(service_type: str) -> dict:
     )
 )
 def get_service_nodes(service: str) -> dict:
+    """查询实现指定服务的节点列表。"""
     return service_nodes(ws_manager, service)
 
 
@@ -195,6 +212,7 @@ def get_service_nodes(service: str) -> dict:
 def get_call_service(
     service_name: str, service_type: str, request: dict, timeout: Optional[float] = None
 ) -> dict:
+    """将请求字典发送给 ROS 服务，返回服务结果或错误。"""
     return call_service(
         ws_manager, service_name, service_type, request, timeout=timeout )
 
@@ -213,11 +231,13 @@ def get_call_service(
     )
 )
 def get_ping_robot(ip: str, port: int, ping_timeout: float = 2.0, port_timeout: float = 2.0) -> dict:
+    """分别检查 IP 和 TCP 端口，辅助判断网络连接状态。"""
     return ping_robot(ip, port, ping_timeout, port_timeout)
 
 
 @mcp.tool(description=("Connect to a robot by setting IP/port and testing connectivity."))
 def get_connect_to_robot(ip: Optional[str] = None, port: Optional[int] = None, ping_timeout: float = 2.0, port_timeout: float = 2.0) -> dict:
+    """设置后续 rosbridge 目标地址并检查连通性。"""
     
     return connect_to_robot(
         ws_manager, ip, port, ping_timeout, port_timeout)
@@ -234,6 +254,7 @@ def get_connect_to_robot(ip: Optional[str] = None, port: Optional[int] = None, p
 def get_subscribe_for_trigger(topic: str, msg_type: str, trigger_field: str, trigger_value, comparison: str = "eq", 
                          wait_time: float = 30.0, num_tries: int = 0, max_tries: int = 5, 
                          queue_length: int = None, throttle_rate_ms: int = None) -> dict:
+    """监听消息字段，直到条件满足或到达等待时间、接收尝试次数上限。"""
     
     return subscribe_for_trigger(ws_manager, topic, msg_type, trigger_field, trigger_value, 
                             comparison, wait_time, num_tries, max_tries, queue_length, throttle_rate_ms)

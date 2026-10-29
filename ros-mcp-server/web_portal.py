@@ -1,3 +1,4 @@
+# 相机与控制走原生 rclpy；话题和服务查询复用 server.py，走 rosbridge WebSocket。
 import gradio as gr
 import threading
 import rclpy
@@ -13,6 +14,7 @@ from config import CAMERA_TOPIC_NAME, CMD_VEL_PUB_TOPIC_NAME
 
 # ---------- Gradio UI ----------
 def main():
+    """启动 ROS 接收、速度发送及可选描述线程，再构建 7860 端口的 Gradio 页面。"""
 
         # --- ROS2 Init ---
     rclpy.init(args=None)
@@ -24,6 +26,7 @@ def main():
 
 
     pub_thread.start()
+    # 线程持续发送当前速度目标；按钮修改目标，点击后会保持运动直到停止或覆盖。
     ros_thread.start()
     if SHOW_DESCRIPTION:      #show LLm description if set as True in config.py
         desc_thread.start()

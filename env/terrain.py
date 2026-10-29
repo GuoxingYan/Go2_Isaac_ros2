@@ -4,6 +4,11 @@ import time
 
 @height_field_to_mesh
 def uniform_discrete_obstacles_terrain(difficulty: float, cfg) -> np.ndarray:
+    """按配置采样矩形障碍高度场；difficulty 参数当前未参与生成。
+
+    函数体返回 int16 高度格，装饰器再按水平/竖直尺度转换为可导入的三角网格。
+    障碍数量是上限：位置采样超时会提前结束，中央平台清零也可能移除部分障碍。
+    """
     np.random.seed(cfg.seed) 
     def is_good_position(obs_list, obs_pos, min_dist):
         for i in range(len(obs_list)):
@@ -36,6 +41,8 @@ def uniform_discrete_obstacles_terrain(difficulty: float, cfg) -> np.ndarray:
     stop_sampling = False
     # generate the obstacles
     obs_list = cfg.avoid_positions
+    # 这里直接引用配置列表，后续 append 会同时修改它；距离约束作用于采样起点，
+    # 不是矩形边缘的净空，不能把 obstacles_distance 当作可通行走廊宽度。
     for _ in range(cfg.num_obstacles):
         # sample size
         height = int(np.random.uniform(obs_height_min, obs_height_max) / cfg.vertical_scale)
@@ -53,6 +60,7 @@ def uniform_discrete_obstacles_terrain(difficulty: float, cfg) -> np.ndarray:
             good_position = is_good_position(obs_list, [x_scale, y_scale], obs_dist)
             sample_time = time.time() 
             if (sample_time - start_time) > 0.2:
+                # 高密度场景可能没有满足间距的位置，时间上限避免无限拒绝采样。
                 stop_sampling = True
                 break
         if (stop_sampling):
@@ -76,5 +84,4 @@ def uniform_discrete_obstacles_terrain(difficulty: float, cfg) -> np.ndarray:
     hf_raw[x1:x2, y1:y2] = 0
     # round off the heights to the nearest vertical step
     return np.rint(hf_raw).astype(np.int16)
-
 

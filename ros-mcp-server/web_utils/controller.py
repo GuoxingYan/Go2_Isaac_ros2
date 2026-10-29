@@ -2,7 +2,9 @@
 import torch
 from rclpy.node import Node
 class Controller(Node,):
+    """网页按钮设置共享速度目标，Twist 消息由 DataStream 发布线程发送。"""
     def __init__(self, cmd_vel):
+        """保存 (1, 3) 张量引用，各列为机身 vx、vy、wz，单位为米/秒及弧度/秒。"""
         super().__init__('Movement_Controller')
     # --- Velocity Command Tensor ---
         self.base_vel_cmd_input = cmd_vel
@@ -19,6 +21,7 @@ class Controller(Node,):
 
     def move_left(self):
         """Set left velocity command"""
+        # 正 y 是机身左向平移；与绕 z 轴左转不同。
         self.base_vel_cmd_input[0] = torch.tensor([0.0, 1.0, 0.0]) 
         return "Moving Left"
     

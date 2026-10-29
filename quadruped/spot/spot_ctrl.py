@@ -1,3 +1,4 @@
+# Spot 的速度目标接口与 Go2 相同，但策略权重必须匹配 Spot 的观测和关节定义。
 import os
 import torch
 import carb
@@ -13,16 +14,20 @@ base_vel_cmd_input = None
 
 # Initialize base_vel_cmd_input as a tensor when created
 def init_base_vel_cmd(num_envs):
+    """初始化每台机器人的 [vx, vy, wz] 机身速度目标，单位为米/秒、米/秒、弧度/秒。"""
     global base_vel_cmd_input
     base_vel_cmd_input = torch.zeros((num_envs, 3), dtype=torch.float32)
 
 # Modify base_vel_cmd to use the tensor directly
 def base_vel_cmd(env: ManagerBasedEnv) -> torch.Tensor:
+    """将外部速度目标复制到环境设备，作为策略观测的一部分。"""
     global base_vel_cmd_input
     return base_vel_cmd_input.clone().to(env.device)
 
 # Update sub_keyboard_event to modify specific rows of the tensor based on key inputs
 def sub_keyboard_event(event) -> bool:
+    """用两组按键控制前两台机器人；任意键释放都会清空整个速度缓冲区。"""
+    # 键盘与 ROS 写同一个张量，没有优先级仲裁；后处理的输入会覆盖先前目标。
     global base_vel_cmd_input
 
     lin_vel=1.0  # stable for 50 freq
@@ -69,8 +74,10 @@ def sub_keyboard_event(event) -> bool:
 
     
 def get_rsl_flat_policy(cfg):
+    """构建 Spot 平地环境并加载普通检查点，或在指定异常下回退到 TorchScript。"""
 
     cfg.observations.policy.height_scan = None
+    # Spot 场景没有启用高度扫描器；平地策略也不需要这一观测项。
     env = gym.make("Isaac-Velocity-Flat-Spot-v0", cfg=cfg)
     env = RslRlVecEnvWrapper(env)
 
@@ -90,6 +97,7 @@ def get_rsl_flat_policy(cfg):
         print("Loaded standard PyTorch checkpoint.")
 
     except NotImplementedError:
+        # 这里只捕获 NotImplementedError，并不是任何权重加载失败都会自动尝试 JIT。
         # TorchScript checkpoint
         policy = torch.jit.load(ckpt_path, map_location=agent_cfg["device"])
         policy.to(agent_cfg["device"])  # force model onto correct device

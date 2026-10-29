@@ -1,3 +1,5 @@
+# 桥接层把仿真真值和渲染结果转换为 ROS 消息，并把 Twist 转回策略速度输入。
+# ROS 话题、TF 坐标系名、USD prim 路径是三套命名体系，需要分别核对。
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
@@ -28,7 +30,9 @@ from isaacsim.ros2.bridge import collect_namespace, read_camera_info
 
 
 class RobotDataManager(Node):
+    """管理所有 Go2 的话题、坐标变换、相机发布管线与同步 YOLO 回调。"""
     def __init__(self, env, lidar_annotators, cameras, cfg):
+        """创建 /clock 图、每台机器人的发布订阅接口，并加载视觉检测模型。"""
         super().__init__("robot_data_manager")
         self.cfg = cfg
         self.create_ros_time_graph()
@@ -96,6 +100,7 @@ class RobotDataManager(Node):
                         f"{prefix}/front_cam/semantic_segmentation_image_vis", 10))
             
             self.cmd_vel_sub.append(self.create_subscription(Twist, f"{prefix}/cmd_vel", 
+                    # 默认参数 idx=i 固定当前索引，避免 Python 闭包最终全部指向最后一台。
                     lambda msg, idx=i: self.cmd_vel_callback(msg, idx), 10))
             #For yolo
             self.image_sub.append(self.create_subscription(Image, f"{prefix}/front_cam/color_image",
@@ -124,6 +129,8 @@ class RobotDataManager(Node):
 
 
     def get_robot_position(self, env_idx):
+        """保留的小地图辅助入口；当前读取的是发布器对象，异常时回退到原点。"""
+        # pose_pub 存放 Publisher 而非 PoseStamped，不能把该回退值当作真实定位结果。
     # Fetch robot pose from latest odometry (map frame)
         try:
             msg = self.pose_pub[env_idx]  # Or store latest PoseStamped in a variable
@@ -134,17 +141,20 @@ class RobotDataManager(Node):
             return np.array([0, 0])
 
     def world_to_map(self, pos):
+        """把米制平面位置转为小地图像素，图像 y 轴向下所以需要反号。"""
         # Convert world coordinates (meters) to map pixels
         map_x = int(self.map_size / 2 + pos[0]*self.map_scale)
         map_y = int(self.map_size / 2 - pos[1]*self.map_scale)
         return (map_x, map_y)
 
     def get_depth_at_pixel(self, env_idx, px, py):
+        """返回占位深度 2 米；当前没有读取对应像素的深度相机结果。"""
         # Return depth value at given pixel from latest depth image
         # For simplicity, you can use a constant depth or subscribe to depth image
         return 2.0  # meters
 
     def transform_camera_to_map(self, robot_pos, depth, box):
+        """用固定前向距离和像素偏移估算二维位置，仅供简化显示，不是标定后的反投影。"""
         # Convert camera detection to world coordinates (simplified)
         # Assumes objects are in front of robot
         # For real implementation, use TF2 + camera intrinsics + depth
@@ -157,6 +167,8 @@ class RobotDataManager(Node):
 
  
     def create_ros_time_graph(self):
+        """用 OmniGraph 将每次播放 tick 的仿真时间发布到 /clock。"""
+        # OmniGraph 的 CONNECT 连数据/执行端口，不是 Python 函数调用关系。
         og.Controller.edit(
             {"graph_path": "/ActionGraph", "evaluator_name": "execution"},
             {
@@ -182,6 +194,7 @@ class RobotDataManager(Node):
         )
 
     def use_sim_time(self):
+        """异步启动 ROS CLI 设置仿真时间；返回 True 只表示已启动命令，没有确认设置成功。"""
         # Define the command as a list
         command = ["ros2", "param", "set", "/robot_data_manager", "use_sim_time", "true"]
 
@@ -190,6 +203,8 @@ class RobotDataManager(Node):
         return True
 
     def create_static_transform(self):
+        """广播 base_link 到雷达及相机的固定安装关系，平移为米，旋转为 xyzw 四元数。"""
+        # TF 告诉下游数据在哪个坐标系中；它不会移动 USD 里的真实传感器。
         for i in range(self.num_envs):
             # LiDAR
             # Create and publish the transform
@@ -237,6 +252,7 @@ class RobotDataManager(Node):
             camera_broadcaster.sendTransform(base_cam_transform)
     
     def create_camera_publisher(self):
+        """按配置挂接 RGB、深度、语义发布器，并在启用相机时发布内参。"""
         # self.pub_image_graph()
         if (self.cfg.sensor.enable_camera):
             if (self.cfg.sensor.color_image):
@@ -249,6 +265,9 @@ class RobotDataManager(Node):
             self.publish_camera_info()
     
     def publish_odom(self, base_pos, base_rot, base_lin_vel_b, base_ang_vel_b, env_idx):
+        """发布仿真真值里程计和 map→base_link TF；位姿在世界系，速度在机身系。"""
+        # Isaac 四元数顺序 wxyz，ROS 字段顺序 xyzw；这里显式重排，不能直接整体赋值。
+        # 名字叫 odom，但位置直接取物理状态，并非轮速积分、视觉里程计或 SLAM 估计。
         odom_msg = Odometry()
         odom_msg.header.stamp = self.get_clock().now().to_msg()
         odom_msg.header.frame_id = "map"
@@ -321,6 +340,7 @@ class RobotDataManager(Node):
     #     self.broadcaster.sendTransform(map_base_trans)
     
     def publish_pose(self, base_pos, base_rot, env_idx):
+        """发布 map 坐标系下的机器人真值位置与姿态，不携带速度。"""
         pose_msg = PoseStamped()
         pose_msg.header.stamp = self.get_clock().now().to_msg()
         pose_msg.header.frame_id = "map"
@@ -334,6 +354,7 @@ class RobotDataManager(Node):
         self.pose_pub[env_idx].publish(pose_msg)
 
     def publish_lidar_data(self, points, env_idx):
+        """把 N×3 点数组打包为 PointCloud2；每点 xyz 各占 4 字节，不附带强度字段。"""
         
         point_cloud = PointCloud2()
         point_cloud.header.frame_id = f"unitree_go2_{env_idx}/lidar_frame"
@@ -348,6 +369,7 @@ class RobotDataManager(Node):
         self.lidar_pub[env_idx].publish(point_cloud)        
 
     def pub_ros2_data_callback(self):
+        """批量发布当前机器人状态；当前主循环使用的是带节流的 pub_ros2_data。"""
         robot_data = self.env.unwrapped.scene["unitree_go2"].data
         for i in range(self.num_envs):
             self.publish_odom(robot_data.root_state_w[i, :3],
@@ -359,10 +381,14 @@ class RobotDataManager(Node):
                               robot_data.root_state_w[i, 3:7], i)
 
     def pub_lidar_data_callback(self):
+        """直接读取各雷达标注器并发布点云；当前未注册为定时器。"""
         for i in range(self.num_envs):
             self.publish_lidar_data(self.lidar_annotators[i].get_data()["data"].reshape(-1, 3), i)
 
     def pub_ros2_data(self):
+        """按墙上时间节流状态和雷达发布；只能在主循环调用时检查是否到期。"""
+        # 50 Hz/15 Hz 是目标上限：40 Hz 主循环不能实现 50 Hz 状态发布；超时不补发。
+        # 节流用 time.time，消息时间戳用 ROS clock；两者在慢速仿真时并不等速。
         pub_odom_pose = False
         pub_lidar = False
         dt_odom_pose = time.time() - self.odom_pose_pub_time
@@ -391,11 +417,14 @@ class RobotDataManager(Node):
                     self.publish_lidar_data(self.lidar_annotators[i].get_data()["data"].reshape(-1, 3), i)
 
     def cmd_vel_callback(self, msg, env_idx):
+        """将 Twist 的 vx、vy、wz 写入指定机器人的速度目标，供后续策略观测使用。"""
+        # 当前没有命令超时自动清零；发送一次非零目标后，需要主动发送零速度停止。
         go2_ctrl.base_vel_cmd_input[env_idx][0] = msg.linear.x
         go2_ctrl.base_vel_cmd_input[env_idx][1] = msg.linear.y
         go2_ctrl.base_vel_cmd_input[env_idx][2] = msg.angular.z
     
     def semantic_segmentation_callback(self, img, env_idx):
+        """将语义 ID 图归一化后着伪彩色便于显示；颜色并非稳定的类别编码。"""
         bridge = CvBridge()
         semantic_image = bridge.imgmsg_to_cv2(img, desired_encoding='passthrough')
         semantic_image_normalized = (semantic_image / semantic_image.max() * 255).astype(np.uint8)
@@ -409,6 +438,7 @@ class RobotDataManager(Node):
 
 
     def pub_image_graph(self):
+        """保留的 OmniGraph 相机发布方案；当前默认采用下方 Replicator writer。"""
         for i in range(self.num_envs):
 
             color_topic_name = f"unitree_go2_{i}/front_cam/color_image"
@@ -465,6 +495,7 @@ class RobotDataManager(Node):
             )
 
     def pub_color_image(self):
+        """把相机渲染输出挂到 RGB ROS writer；后续帧由渲染管线自动发布。"""
         for i in range(self.num_envs):
             # The following code will link the camera's render product and publish the data to the specified topic name.
             render_product = self.cameras[i]._render_product_path
@@ -489,6 +520,7 @@ class RobotDataManager(Node):
             og.Controller.attribute(gate_path + ".inputs:step").set(self.step_size)
 
     def pub_depth_image(self):
+        """发布到成像平面的距离图；该深度不同于相机原点到表面的径向距离。"""
         for i in range(self.num_envs):
             # The following code will link the camera's render product and publish the data to the specified topic name.
             render_product = self.cameras[i]._render_product_path
@@ -515,6 +547,7 @@ class RobotDataManager(Node):
             og.Controller.attribute(gate_path + ".inputs:step").set(self.step_size)
 
     def pub_semantic_image(self):
+        """分别挂接语义像素 ID 和标签映射发布器，类别来源于场景语义标注。"""
         for i in range(self.num_envs):
             # The following code will link the camera's render product and publish the data to the specified topic name.
             render_product = self.cameras[i]._render_product_path
@@ -552,6 +585,7 @@ class RobotDataManager(Node):
             og.Controller.attribute(gate_path + ".inputs:step").set(self.step_size)
 
     def pub_cam_depth_cloud(self):
+        """提供深度相机点云发布能力；当前 create_camera_publisher 没有启用此入口。"""
         for i in range(self.num_envs):
             # The following code will link the camera's render product and publish the data to the specified topic name.
             render_product = self.cameras[i]._render_product_path
@@ -579,6 +613,8 @@ class RobotDataManager(Node):
             og.Controller.attribute(gate_path + ".inputs:step").set(self.step_size)   
 
     def publish_camera_info(self):
+        """读取渲染相机内参并发布 CameraInfo，K/R/P 分别描述内参、校正及投影矩阵。"""
+        # 此处 frame_id 仅为 front_cam；图像和 TF 使用带机器人前缀的名字，需要留意。
         for i in range(self.num_envs):
             # The following code will link the camera's render product and publish the data to the specified topic name.
             render_product = self.cameras[i]._render_product_path
@@ -612,6 +648,8 @@ class RobotDataManager(Node):
 
     def image_callback(self, msg, env_idx):
         """Process camera images and detect objects using YOLO."""
+        # 在 spin_once 所在线程同步运行检测，耗时会直接增加主仿真循环时间。
+        # 当前阈值为 self.confidence_threshold=0.5；主程序中的注释并未关闭这里的 YOLO。
         try:
             # Convert ROS Image to OpenCV image
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
@@ -684,6 +722,7 @@ class RobotDataManager(Node):
                     
                     # Position marker in 3D space (simplified projection)
                     marker.pose.position.x = 2.0  # 2 meters in front of camera
+                    # 三维 Marker 固定放在前方 2 米，未融合深度和内参，不是真实物体三维位置。
                     marker.pose.position.y = ((box[0] + box[2])/2 - 320) / 100.0  # scaled x offset from center
                     marker.pose.position.z = ((box[1] + box[3])/2 - 240) / 100.0  # scaled y offset from center
                     
@@ -758,4 +797,3 @@ class RobotDataManager(Node):
 
     #     except Exception as e:
     #         self.get_logger().error(f'Error in image_callback: {str(e)}')
-

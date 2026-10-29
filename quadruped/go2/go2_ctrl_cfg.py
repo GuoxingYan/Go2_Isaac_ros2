@@ -1,3 +1,6 @@
+# 这些字典用于重建训练时的网络再加载权重，不代表 main.py 会训练 PPO。
+# actor 输出动作，critic 估计价值；网络层宽、观测维度与检查点必须匹配。
+# load_run/load_checkpoint 相对于当前工作目录下的 ckpts，因此应从项目根目录启动。
 unitree_go2_flat_cfg = {
     'seed': 42,
     'device': 'cuda:0',
@@ -37,6 +40,7 @@ unitree_go2_flat_cfg = {
     'load_checkpoint': 'flat_model_6800.pt'    #Add your own flat terrain policy here
 }
 
+# 粗糙地形模型采用更宽的网络，并依赖包含高度信息的相应观测配置。
 unitree_go2_rough_cfg = {
         'seed': 42, 
         'device': 'cuda', 

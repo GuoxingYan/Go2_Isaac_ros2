@@ -14,7 +14,9 @@ from web_utils.llm_describer import GenerateResponse
 
 # ---Display Live Stream -----------------------------------------------------
 class DataStream:
+    """连接图像缓存、速度缓冲及模型描述，供网页和各后台线程使用。"""
     def __init__(self, camera_topic, cmd_vel):
+        """创建单机器人数据通道；Controller 与发布线程共享同一个速度张量。"""
         self.system = GenerateResponse()
         # self.TF = TFGraph()
 
@@ -36,6 +38,7 @@ class DataStream:
     def publish_commands(self):
             """Continuously publish base_vel_cmd_input to /cmd_vel"""
             rate_hz = 10
+            # 此 10 Hz 发送频率独立于仿真控制频率和网页图像刷新频率。
             rate = 1.0 / rate_hz
             while rclpy.ok():
                 msg = Twist()
@@ -46,6 +49,7 @@ class DataStream:
                 time.sleep(rate)
 
     def get_description_from_image(self, image: np.ndarray):
+        """把图像编码为 JPEG data URL 后请求模型描述，返回网页显示的文字。"""
         # Ensure RGB before encoding
         if image.shape[2] == 3:
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -57,6 +61,7 @@ class DataStream:
         return self.system.llm_response(data_url)
 
     def update_description(self):
+        """定期用最新图像更新描述缓存，模型响应耗时也计入实际刷新间隔。"""
         while rclpy.ok():
             frame = self.image_subscriber.color_frame
             if frame is not None:
@@ -68,6 +73,7 @@ class DataStream:
 
 
     def live_cam_feed(self,mode:str):
+        """向 Gradio 持续生成图像与描述；网页刷新不会推进物理仿真。"""
         
         while True:
             if mode=="color_image":

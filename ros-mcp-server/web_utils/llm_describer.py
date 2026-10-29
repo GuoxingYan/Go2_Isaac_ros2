@@ -3,7 +3,9 @@ from config import AZURE_API_BASE, AZURE_API_KEY, AZURE_API_VERSION
 from server import (
     get_list_topics, get_topic_type, get_topic_message, get_topic_publishers, get_topic_subscribers)
 class GenerateResponse:
+    """调用视觉语言模型生成文字说明；此类自身不执行运动控制工具。"""
     def __init__(self):
+        """选择默认 Azure 模型、服务地址和图像描述提示词。"""
         self.MODELS = {"ChatGPT-4o": "azure/azure_openai_app_4o",
                        "Gemma3": "ollama/gemma3:latest",
                        }
@@ -18,6 +20,7 @@ class GenerateResponse:
 
         
     def llm_response(self,image_path=None):
+        """发送文字和可选图像 URL，等待完整响应；image_path 也可为 data URL。"""
         if image_path is not None:
             messages=[
                     {"role": "system", "content": f"{self.system_message}"},

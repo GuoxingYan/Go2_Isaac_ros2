@@ -1,3 +1,5 @@
+# rosbridge 用 JSON 表达 ROS 操作，这一层只负责传输，不计算机器人控制动作。
+# request 接收下一帧直接返回，未按请求 ID 实现并发响应分发。
 import json
 import threading
 from typing import Optional, Union
@@ -26,12 +28,15 @@ def parse_json(raw: Optional[Union[str, bytes]]) -> Optional[dict]:
 
 
 class WebSocketManager:
+    """管理同步 WebSocket 连接，用可重入锁保护单次发送或接收。"""
     def __init__(self, ip: str, port: int, default_timeout: float = 2.0):
+        """保存地址和超时；实际连接推迟到首次发送或接收。"""
         self.ip = ip
         self.port = port
         self.default_timeout = default_timeout
         self.ws = None
         self.lock = threading.RLock()
+        # send/receive 持锁后还会调用 connect/close，因此同线程必须能够重入。
 
     def set_ip(self, ip: str, port: int):
         """
@@ -154,6 +159,7 @@ class WebSocketManager:
         return parsed_response
 
     def close(self):
+        """关闭当前连接；上下文退出也调用此方法，下次请求可重新连接。"""
         with self.lock:
             if self.ws and self.ws.connected:
                 try:

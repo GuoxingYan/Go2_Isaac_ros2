@@ -1,3 +1,5 @@
+# 将 Python 字典封装成 rosbridge call_service 请求，再解析服务响应。
+# ROS 服务名用于寻址，服务类型描述请求/响应字段，两者不能互换。
 from typing import Optional
 from .websocket_manager import WebSocketManager
 

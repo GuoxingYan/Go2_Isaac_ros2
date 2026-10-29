@@ -1,3 +1,4 @@
+# ping 检查 IP 层可达性，TCP 探测检查端口；二者都不证明 ROS 话题链路工作正常。
 import socket
 import subprocess
 import platform
