@@ -93,6 +93,94 @@ If you dont see anything click add button and from topic list select topic you w
 
 ![rviz add](<media/rviz_add.png>)
 
+### 3.5 本项目的实际启动与验证命令
+
+请使用 `rviz2`，不是 `viz2`。先在一个终端启动仿真，再在另一个终端启动 RViz。
+
+当前 `cfg/sim.yaml` 的默认配置是 `robot: go2` 时，启动 Go2：
+
+```bash
+cd /data/projects/Sim2Real/1029_4.5/Go2_Isaac_ros2
+source /data/anaconda3/etc/profile.d/conda.sh
+conda activate go2_codex
+source /data/apps/ros2-humble/activate_sim.sh
+OMNI_KIT_ACCEPT_EULA=yes python main.py
+```
+
+另开终端查看 Go2：
+
+```bash
+cd /data/projects/Sim2Real/1029_4.5/Go2_Isaac_ros2
+source /data/anaconda3/etc/profile.d/conda.sh
+conda activate go2_codex
+source /data/apps/ros2-humble/activate_sim.sh
+rviz2 -d rviz/go2.rviz
+```
+
+如果出现：
+
+```text
+rviz2: symbol lookup error: /snap/core20/current/lib/x86_64-linux-gnu/libpthread.so.0: undefined symbol: __libc_pthread_init
+```
+
+说明当前终端继承了 Snap 的库路径或预加载库。用干净的环境重新加载 ROS 2：
+
+```bash
+env -u LD_PRELOAD -u LD_LIBRARY_PATH bash -lc '
+  source /data/anaconda3/etc/profile.d/conda.sh
+  conda activate go2_codex
+  source /data/apps/ros2-humble/activate_sim.sh
+  rviz2 -d /data/projects/Sim2Real/1029_4.5/Go2_Isaac_ros2/rviz/go2.rviz
+'
+```
+
+Spot 的命令只需把最后一行替换为：
+
+```bash
+rviz2 -d /data/projects/Sim2Real/1029_4.5/Go2_Isaac_ros2/rviz/spot.rviz
+```
+
+Go2 的 ROS 2 话题前缀是 `/unitree_go2_0/`。可以用下面的命令确认消息正在发布：
+
+```bash
+ros2 topic list | grep unitree_go2_0
+ros2 topic hz /unitree_go2_0/front_cam/color_image
+ros2 topic echo --once /unitree_go2_0/front_cam/color_image --field height
+ros2 topic echo --once /unitree_go2_0/lidar/point_cloud --field width
+```
+
+预期相机图像高度为 `480`，点云宽度应大于 `0`。
+
+切换到 Spot 时，先停止当前仿真，再修改 [cfg/sim.yaml](<cfg/sim.yaml>)：
+
+```yaml
+robot: spot
+```
+
+然后重新运行 `python main.py`，并使用：
+
+```bash
+rviz2 -d rviz/spot.rviz
+```
+
+Spot 的 ROS 2 话题前缀是 `/spot_0/`。例如：
+
+```bash
+ros2 topic hz /spot_0/front_cam/color_image
+ros2 topic echo --once /spot_0/lidar/point_cloud --field width
+```
+
+`spot.rviz` 只订阅 `/spot_0/...`，`go2.rviz` 只订阅 `/unitree_go2_0/...`，两者不能交叉使用。当前入口在 `argparse` 阶段不会接受 `python main.py robot=go2` 这种命令行覆盖方式，请直接修改 `cfg/sim.yaml`。
+
+如果 RViz 无法显示内容，请依次检查：
+
+1. 仿真窗口是否仍在运行并播放。
+2. RViz 的 `Fixed Frame` 是否为 `map`。
+3. Display 中的 Topic 是否与当前机器人前缀一致。
+4. `ros2 topic hz` 是否持续收到消息。
+
+RViz 需要桌面图形会话；不要使用 `QT_QPA_PLATFORM=offscreen` 启动 RViz，否则可能出现 `Invalid parentWindowHandle`。`depth_cloud` 是旧配置项，当前桥接代码主要发布 `depth_image`，如果该 Display 报错可以在 RViz 中禁用。
+
 Here is a categorized list of ROS 2 topics available for the Unitree Go2 and Spot.
 
 

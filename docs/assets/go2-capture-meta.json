@@ -1,0 +1,48 @@
+{
+  "color": {
+    "encoding": "rgb8",
+    "shape": [
+      480,
+      640,
+      3
+    ],
+    "min": 0.0,
+    "max": 207.0
+  },
+  "depth": {
+    "encoding": "32FC1",
+    "shape": [
+      480,
+      640
+    ],
+    "display_range": [
+      1.0305900382995605,
+      17.870376663208006
+    ]
+  },
+  "lidar": {
+    "points": 205313,
+    "plotted_points": 187931,
+    "frame_id": "unitree_go2_0/lidar_frame"
+  },
+  "semantic": {
+    "encoding": "rgb8",
+    "shape": [
+      480,
+      640,
+      3
+    ],
+    "min": 0.0,
+    "max": 128.0
+  },
+  "detection": {
+    "encoding": "bgr8",
+    "shape": [
+      480,
+      640,
+      3
+    ],
+    "min": 0.0,
+    "max": 208.0
+  }
+}

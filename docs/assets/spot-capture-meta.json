@@ -1,0 +1,48 @@
+{
+  "depth": {
+    "encoding": "32FC1",
+    "shape": [
+      480,
+      640
+    ],
+    "display_range": [
+      1.0481948852539062,
+      18.366559982299805
+    ]
+  },
+  "lidar": {
+    "points": 191129,
+    "plotted_points": 171286,
+    "frame_id": "spot_0/lidar_frame"
+  },
+  "color": {
+    "encoding": "rgb8",
+    "shape": [
+      480,
+      640,
+      3
+    ],
+    "min": 12.0,
+    "max": 210.0
+  },
+  "detection": {
+    "encoding": "bgr8",
+    "shape": [
+      480,
+      640,
+      3
+    ],
+    "min": 14.0,
+    "max": 211.0
+  },
+  "semantic": {
+    "encoding": "rgb8",
+    "shape": [
+      480,
+      640,
+      3
+    ],
+    "min": 0.0,
+    "max": 128.0
+  }
+}

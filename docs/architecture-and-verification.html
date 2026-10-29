@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Go2 / Spot Isaac Sim ROS2：架构与人工验证</title>
+  <style>
+    :root { --ink:#17243b; --muted:#53627a; --line:#d9e2ee; --paper:#f4f7fb; --card:#fff; --blue:#2459d3; --teal:#087f79; --amber:#a75a00; --red:#b33b45; --code:#17243b; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.72 system-ui,-apple-system,"Noto Sans CJK SC","Microsoft YaHei",sans-serif; }
+    a { color:var(--blue); text-underline-offset:3px; }
+    a:hover { color:#153b9b; }
+    .shell { display:grid; grid-template-columns:236px minmax(0,1fr); max-width:1600px; margin:auto; }
+    aside { position:sticky; top:0; align-self:start; height:100vh; padding:30px 18px; overflow:auto; background:#101f39; color:#dbe6f7; }
+    aside .brand { font-size:13px; font-weight:800; letter-spacing:.13em; color:#7fd7cf; text-transform:uppercase; margin-bottom:24px; }
+    aside a { display:block; padding:8px 12px; margin:3px 0; border-radius:9px; text-decoration:none; color:#dbe6f7; font-size:14px; }
+    aside a:hover, aside a:focus { color:white; background:#24446e; }
+    aside small { display:block; margin:22px 12px 0; color:#9aadc9; line-height:1.5; }
+    main { min-width:0; padding:0 38px 80px; }
+    .hero { margin:0 -38px 36px; padding:46px 38px 42px; color:#fff; background:linear-gradient(122deg,#102039 0%,#16396a 58%,#0b7778 100%); }
+    .eyebrow { color:#9de8dc; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+    h1 { margin:12px 0; font-size:clamp(30px,4vw,48px); line-height:1.18; letter-spacing:-.03em; }
+    .hero p { max-width:820px; color:#d8e7f5; font-size:17px; margin:14px 0 0; }
+    .badges { display:flex; flex-wrap:wrap; gap:9px; margin-top:24px; }
+    .badge { display:inline-flex; align-items:center; border:1px solid #88b3ca; border-radius:999px; padding:5px 11px; color:#ecfbff; font-size:12px; font-weight:700; }
+    section { scroll-margin-top:24px; max-width:1160px; margin:0 auto 54px; }
+    h2 { margin:0 0 16px; font-size:29px; line-height:1.25; letter-spacing:-.02em; }
+    h3 { margin:22px 0 8px; font-size:20px; }
+    h4 { margin:0 0 8px; font-size:16px; }
+    p { margin:8px 0 14px; }
+    .lead { color:var(--muted); font-size:17px; max-width:890px; }
+    .panel,.module,.sample,.step,.callout { background:var(--card); border:1px solid var(--line); border-radius:15px; box-shadow:0 5px 22px #1d3c6a0a; }
+    .panel { padding:22px; }
+    .diagram-wrap { overflow-x:auto; padding:14px; background:#f9fbfe; border:1px solid var(--line); border-radius:12px; }
+    .diagram { min-width:900px; width:100%; height:auto; display:block; }
+    .caption { margin-top:12px; color:var(--muted); font-size:13px; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    .module { padding:20px 22px; }
+    .module .num { display:inline-flex; width:30px; height:30px; justify-content:center; align-items:center; border-radius:9px; background:#e8efff; color:var(--blue); font-size:13px; font-weight:800; margin-bottom:10px; }
+    .module p:last-child { margin-bottom:0; }
+    .path { display:block; margin:7px 0 10px; font:13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+    .path a { color:#315ba8; }
+    .mini { color:var(--muted); font-size:14px; }
+    .flow { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+    .flow .step { padding:17px; position:relative; }
+    .flow .step:not(:last-child):after { content:"→"; position:absolute; right:-17px; top:44%; z-index:2; color:var(--blue); font-weight:900; background:var(--paper); border-radius:50%; width:18px; text-align:center; }
+    .step strong { display:block; color:var(--blue); font-size:14px; margin-bottom:7px; }
+    .step p { font-size:14px; margin:0; }
+    .samples { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:17px; }
+    .sample { overflow:hidden; }
+    .sample img { display:block; width:100%; aspect-ratio:4/3; object-fit:contain; background:#1b2535; }
+    .sample .body { padding:15px 18px 18px; }
+    .sample .body p { margin:4px 0 0; color:var(--muted); font-size:14px; }
+    .sample.wide { grid-column:span 2; display:grid; grid-template-columns:minmax(0,1fr) 300px; }
+    .sample.wide img { aspect-ratio:16/7; }
+    .callout { padding:17px 20px; border-left:5px solid var(--teal); margin:18px 0; }
+    .callout.warn { border-left-color:#d68a17; }
+    .callout p { margin:0; }
+    .tag { display:inline-block; padding:2px 7px; border-radius:5px; background:#e8f7f5; color:#076d67; font-size:12px; font-weight:800; vertical-align:middle; }
+    .tag.partial { background:#fff1d6; color:#895000; }
+    .tag.none { background:#fce8e9; color:#a3333d; }
+    .table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:#fff; }
+    table { width:100%; border-collapse:collapse; min-width:640px; }
+    th,td { text-align:left; padding:11px 13px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { background:#eaf0f8; font-size:13px; }
+    tr:last-child td { border-bottom:0; }
+    code { padding:1px 4px; border-radius:4px; color:#173e83; background:#eaf0f8; font: .9em ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+    pre { overflow:auto; padding:17px 19px; color:#f2f7ff; background:var(--code); border-radius:10px; line-height:1.6; font-size:13px; }
+    pre code { padding:0; color:inherit; background:none; font:inherit; }
+    .terminal-label { margin:18px 0 -5px; color:var(--muted); font-size:13px; font-weight:800; letter-spacing:.04em; }
+    .checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .checks .panel { padding:17px 19px; }
+    .checks h4 { color:var(--teal); }
+    details { background:#fff; border:1px solid var(--line); border-radius:10px; margin:8px 0; padding:10px 15px; }
+    summary { cursor:pointer; font-weight:750; }
+    details p { color:var(--muted); margin:8px 0 2px; }
+    .muted { color:var(--muted); }
+    footer { max-width:1160px; margin:45px auto 0; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:13px; }
+    @media (max-width:900px) { .shell { display:block; } aside { position:static; height:auto; padding:12px 18px; } aside .brand { margin:0 0 4px; } aside nav { display:flex; overflow:auto; } aside a { white-space:nowrap; } aside small { display:none; } main { padding:0 18px 55px; } .hero { margin:0 -18px 28px; padding:30px 18px; } .flow { grid-template-columns:repeat(2,minmax(0,1fr)); } .flow .step:after { display:none; } }
+    @media (max-width:620px) { .grid,.samples,.checks { grid-template-columns:1fr; } .sample.wide { grid-column:auto; display:block; } .sample.wide img { aspect-ratio:4/3; } .flow { grid-template-columns:1fr; } h2 { font-size:25px; } }
+    @media print { body { background:#fff; } .shell { display:block; } aside { display:none; } main { padding:0; } .hero { margin:0 0 26px; color:#102039; background:none; padding:0; } .hero p { color:#333; } .badge { color:#102039; border-color:#999; } section { break-inside:avoid; } details { break-inside:avoid; } }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside aria-label="文档导航">
+    <div class="brand">Go2 / Spot · Isaac Sim</div>
+    <nav>
+      <a href="#architecture">01 框架图</a><a href="#runtime">02 一次仿真如何运行</a>
+      <a href="#modules">03 逐个模块</a><a href="#rendering">04 渲染与真实样本</a>
+      <a href="#manual">05 人工自验证</a><a href="#debug">06 调试与故障定位</a>
+      <a href="#verified">07 已验证范围</a>
+    </nav>
+    <small>HTML 没有外部依赖。若 Snap 版 Chromium 无法读取 /data，可在仓库根目录运行 python3 -m http.server 8765，再打开本机 8765 端口。</small>
+  </aside>
+  <main>
+    <header class="hero">
+      <div class="eyebrow">源码导览 · 运行手册 · 渲染证据</div>
+      <h1>Go2 / Spot Isaac Sim ROS2<br>项目架构与人工验证</h1>
+      <p>从配置、物理仿真、强化学习控制，到 RTX 相机、激光雷达、ROS2 话题和可视化。下面先看框架，再逐层说明，最后按终端步骤亲自验证。</p>
+      <div class="badges"><span class="badge">Isaac Sim 4.5.0</span><span class="badge">Isaac Lab 2.1.1</span><span class="badge">ROS2 Humble</span><span class="badge">RTX 3090 · 驱动 570.144</span><span class="badge">本机实测样本</span></div>
+    </header>
+
+    <section id="architecture">
+      <h2>01 · 总体框架图</h2>
+      <p class="lead">主程序只运行 Go2 或 Spot 其中一种。两套机器人代码结构对称；环境与传感器数据进入同一个仿真循环，再经 ROS2 发布给 RViz 或可选的 Web Portal。</p>
+      <div class="panel">
+        <div class="diagram-wrap">
+          <svg class="diagram" viewBox="0 0 1100 510" role="img" aria-label="配置经 main.py 选择 Go2 或 Spot，控制策略驱动 Isaac Lab 仿真，RTX 传感器与机器人状态通过 ROS2 桥接发布到 RViz 或 Web Portal">
+            <defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 Z" fill="#5076b4"/></marker></defs>
+            <g stroke="#5076b4" stroke-width="2.5" fill="none" marker-end="url(#arrow)">
+              <path d="M205 73 H260"/><path d="M490 73 H545"/><path d="M775 73 H830"/>
+              <path d="M375 116 V182 H428 V202"/><path d="M660 116 V177 H729 V202"/><path d="M945 116 V202"/>
+              <path d="M248 248 H307"/><path d="M550 248 H608"/><path d="M905 248 H850"/>
+              <path d="M740 291 V327 H829 V357"/><path d="M420 291 V339 H590 V357"/><path d="M646 408 H730"/><path d="M928 408 H978"/>
+            </g>
+            <g font-family="system-ui,'Noto Sans CJK SC',sans-serif" text-anchor="middle">
+              <g fill="#eaf0ff" stroke="#b4c9ef"><rect x="20" y="30" width="185" height="86" rx="14"/><rect x="260" y="30" width="230" height="86" rx="14"/><rect x="545" y="30" width="230" height="86" rx="14"/><rect x="830" y="30" width="230" height="86" rx="14"/></g>
+              <g fill="#e9f8f4" stroke="#a6d6d2"><rect x="35" y="202" width="213" height="89" rx="14"/><rect x="307" y="202" width="243" height="89" rx="14"/><rect x="608" y="202" width="242" height="89" rx="14"/><rect x="905" y="202" width="155" height="89" rx="14"/></g>
+              <g fill="#fff4e1" stroke="#e7c78d"><rect x="535" y="357" width="111" height="102" rx="14"/><rect x="730" y="357" width="198" height="102" rx="14"/><rect x="978" y="357" width="82" height="102" rx="14"/></g>
+              <g fill="#17243b" font-size="17" font-weight="750"><text x="112" y="64">cfg/sim.yaml</text><text x="375" y="64">main.py</text><text x="660" y="64">Go2 / Spot 分支</text><text x="945" y="64">env/sim_env.py</text><text x="141" y="238">键盘 / cmd_vel</text><text x="428" y="238">策略 + Isaac Lab</text><text x="729" y="238">相机 / RTX LiDAR</text><text x="982" y="238">场景 USD</text><text x="590" y="393">状态</text><text x="829" y="393">ROS2 桥接</text><text x="1018" y="393">消费者</text></g>
+              <g fill="#52627a" font-size="13"><text x="112" y="89">机器人 · 频率 · 传感器</text><text x="375" y="89">AppLauncher + Hydra + 循环</text><text x="660" y="89">二选一实例化</text><text x="945" y="89">地形 / 仓库 / 办公室…</text><text x="141" y="263">速度指令</text><text x="428" y="263">obs → policy → env.step</text><text x="729" y="263">RGB · 深度 · 语义 · 点云</text><text x="982" y="263">世界资产</text><text x="590" y="420">里程计</text><text x="829" y="420">Writer + rclpy</text><text x="1018" y="420">RViz</text><text x="1018" y="440">MCP</text></g>
+            </g>
+          </svg>
+        </div>
+        <p class="caption">实线箭头表示主要依赖和数据流；`ros-mcp-server` 是可选消费者，主程序不依赖它启动。</p>
+      </div>
+    </section>
+
+    <section id="runtime">
+      <h2>02 · 一次仿真如何运行</h2>
+      <div class="flow">
+        <div class="step"><strong>① 启动 Kit</strong><p><code>AppLauncher</code> 先启动 Isaac Sim，之后才导入依赖 Omniverse 的模块。</p></div>
+        <div class="step"><strong>② 建场景与策略</strong><p>Hydra 读取 YAML；选择机器人环境，创建 Gym 环境并加载 <code>ckpts/</code> 策略。</p></div>
+        <div class="step"><strong>③ 接传感器</strong><p>为每个机器人添加 640×480 相机与 Velodyne_VLS128 RTX LiDAR。</p></div>
+        <div class="step"><strong>④ 仿真循环</strong><p>观测送入策略，动作交给 <code>env.step()</code>；控制与渲染持续更新。</p></div>
+        <div class="step"><strong>⑤ 发布 ROS2</strong><p>Writer 输出相机图，rclpy 输出点云、里程计、TF，并处理 YOLO 回调。</p></div>
+      </div>
+      <div class="callout"><p><strong>频率如何对应：</strong>默认物理步长 <code>dt=0.005 s</code>（200 Hz），<code>freq=40</code> 使 <code>decimation=5</code>，每 5 个物理步执行一次策略 / 渲染，目标循环周期 25 ms。图像、里程计和雷达的实际话题频率还取决于 GPU 渲染、YOLO 和系统负载；请用 <code>ros2 topic hz</code> 实测。</p></div>
+    </section>
+
+    <section id="modules">
+      <h2>03 · 逐个模块解释</h2>
+      <p class="lead">以下按运行时依赖顺序阅读。每个文件链接都可从这份 HTML 直接打开相邻源码。</p>
+      <div class="grid">
+        <article class="module"><span class="num">01</span><h3>运行配置</h3><span class="path"><a href="../cfg/sim.yaml">cfg/sim.yaml</a></span><p>定义 <code>robot</code>、<code>env_name</code>、<code>num_envs</code>、<code>freq</code>、<code>camera_follow</code> 与发布开关。当前默认 <strong>Spot + obstacle + 1 个环境 + 40 Hz</strong>。切换机器人时直接改 YAML 中的 <code>robot</code>。</p><p class="mini">入口先执行 <code>argparse.parse_args()</code>，会拒绝 <code>robot=go2</code> 形式的 Hydra 命令行覆盖。<code>sensor.enable_camera</code> / <code>enable_lidar</code> 控制发布路径；主入口仍会先创建传感器。<code>sim_app</code> 字段当前未在 <code>main.py</code> 中读取。</p></article>
+        <article class="module"><span class="num">02</span><h3>入口与主循环</h3><span class="path"><a href="../main.py">main.py</a></span><p>先用 Isaac Lab <code>AppLauncher</code> 启动 Kit，再根据配置走 Go2 或 Spot 分支，依次完成环境、地形、传感器、键盘和 ROS2 节点初始化。循环内执行 <code>policy(obs)</code>、<code>env.step(actions)</code>、<code>dm.pub_ros2_data()</code> 和 <code>rclpy.spin_once()</code>。</p><p class="mini">代码持续运行到仿真窗口关闭；验证时主动中止，不能把定时结束当作启动失败。</p></article>
+        <article class="module"><span class="num">03</span><h3>世界与地形</h3><span class="path"><a href="../env/sim_env.py">env/sim_env.py</a> · <a href="../env/terrain.py">terrain.py</a> · <a href="../env/terrain_cfg.py">terrain_cfg.py</a></span><p><code>sim_env.py</code> 按名称导入 obstacle、warehouse、office、hospital、rivermark 或 terrain。obstacle 使用自定义离散障碍物高度场；<code>terrain.py</code> 生成高度值，再由 Isaac Lab 转成网格。其他场景引用 Isaac 资产 USD，可能需要资产服务可用。</p><p class="mini">日志里可能出现 <code>/World/GroundPlane</code> 找不到的语义标签警告；本次彩色、深度和语义图仍收到数据。</p></article>
+        <article class="module"><span class="num">04</span><h3>机器人环境</h3><span class="path"><a href="../quadruped/go2/go2_env.py">quadruped/go2/go2_env.py</a> · <a href="../quadruped/spot/spot_env.py">quadruped/spot/spot_env.py</a></span><p>Isaac Lab <code>ManagerBasedRLEnvCfg</code> 描述机器人 USD、地面、光照、接触传感器、关节位置动作、策略观测和仿真参数。观测包含机身线/角速度、投影重力、速度命令、关节位置/速度与上一步动作。</p><p class="mini">平地策略加载前会把 <code>height_scan</code> 观测置空；两套环境还提供视角跟随函数。</p></article>
+        <article class="module"><span class="num">05</span><h3>控制与策略权重</h3><span class="path"><a href="../quadruped/go2/go2_ctrl.py">go2_ctrl.py</a> · <a href="../quadruped/spot/spot_ctrl.py">spot_ctrl.py</a> · <a href="../quadruped/go2/go2_ctrl_cfg.py">go2_ctrl_cfg.py</a> · <a href="../quadruped/spot/spot_ctrl_cfg.py">spot_ctrl_cfg.py</a> · <a href="../ckpts/">ckpts/</a></span><p>键盘 W/A/S/D/Z/C 修改共享的三维速度命令张量，ROS <code>cmd_vel</code> 回调也写入它；策略把观测映射成关节动作。Go2 平地权重是 <code>ckpts/unitree_go2/flat_model_6800.pt</code>，Spot 是 <code>ckpts/bd_spot/spot_policy.pt</code>；Spot 支持 TorchScript 权重回退。</p><p class="mini">主程序当前只调用平地策略。Go2 粗糙地形策略函数虽存在，主入口没有选择它。</p></article>
+        <article class="module"><span class="num">06</span><h3>相机与 RTX LiDAR</h3><span class="path"><a href="../quadruped/go2/go2_sensors.py">go2_sensors.py</a> · <a href="../quadruped/spot/spot_sensors.py">spot_sensors.py</a></span><p><code>SensorManager</code> 对每个环境创建前置相机和 RTX 激光雷达。相机 <code>Camera.initialize()</code> 建立渲染产品，分辨率 640×480；雷达使用 <code>Velodyne_VLS128</code> 配置和 Replicator annotator 取扫描缓冲。</p><p class="mini">Spot 相机挂在 <code>spot/body</code>，Go2 相机挂在 <code>Go2/base</code>；雷达也分别挂在机器人机身下。</p></article>
+        <article class="module"><span class="num">07</span><h3>ROS2 桥接与视觉</h3><span class="path"><a href="../ros2/go2_ros2_bridge.py">go2_ros2_bridge.py</a> · <a href="../ros2/spot_ros2_bridge.py">spot_ros2_bridge.py</a></span><p><code>RobotDataManager</code> 建立 <code>/clock</code> 图、TF、里程计/位姿/点云发布器，Replicator Writer 则把 RGB、深度、语义图与相机内参送到 ROS2。节点订阅颜色图运行 YOLOv8n，再发布检测图、<code>Detection2DArray</code> 和 Marker。</p><p class="mini">话题前缀为 <code>/spot_0</code> 或 <code>/unitree_go2_0</code>。检测话题出现消息不等于一定有非空目标框。</p></article>
+        <article class="module"><span class="num">08</span><h3>下游展示与可选服务</h3><span class="path"><a href="../rviz/spot.rviz">rviz/spot.rviz</a> · <a href="../rviz/go2.rviz">rviz/go2.rviz</a> · <a href="../ros-mcp-server/README_MCP.md">ros-mcp-server/</a></span><p>RViz 配置预设相机图、点云、位姿和检测图，固定坐标系是 <code>map</code>。可选的 MCP Server 通过 rosbridge 的 WebSocket 操作 ROS 话题/服务；Gradio Web Portal 可查看相机并发送速度命令。</p><p class="mini">MCP / Web Portal 未纳入本轮运行验证。RViz 预设里有 <code>depth_cloud</code> 显示，但对应发布函数当前未启用，显示缺话题属于预设与代码不一致。</p></article>
+      </div>
+    </section>
+
+    <section id="rendering">
+      <h2>04 · 渲染链路与本机实测样本</h2>
+      <p class="lead">本节图片于本机运行 Spot 与 Go2 的 obstacle 场景时，从 ROS2 话题采集，不是 README 中的示意图。图像与点云分别呈现“GPU 渲染 → 传感器数据 → ROS2 发布 → 消费端”的不同阶段。</p>
+      <div class="samples">
+        <figure class="sample"><img src="assets/spot-color.png" alt="Spot 前置相机采集的障碍物场景彩色图" loading="lazy"><figcaption class="body"><h4>① 彩色相机 · RGB</h4><p><code>/spot_0/front_cam/color_image</code>，<code>rgb8</code>，480×640×3。来自相机 render product 的真实像素。</p></figcaption></figure>
+        <figure class="sample"><img src="assets/spot-depth.png" alt="Spot 深度图的伪彩色可视化" loading="lazy"><figcaption class="body"><h4>② 深度相机 · 距离</h4><p><code>/spot_0/front_cam/depth_image</code> 原始消息是 <code>32FC1</code> 浮点距离；此图仅把约 1.05–18.37 m 范围映射为伪彩色，原始数据不是这些颜色。</p></figcaption></figure>
+        <figure class="sample"><img src="assets/spot-semantic.png" alt="Spot 障碍物场景的语义分割可视化" loading="lazy"><figcaption class="body"><h4>③ 语义分割 · 类别</h4><p><code>/spot_0/front_cam/semantic_segmentation_image_vis</code>；颜色表示类别/标签，不表示物体距离。原始语义图与标签字典另有话题。</p></figcaption></figure>
+        <figure class="sample"><img src="assets/spot-detection.png" alt="Spot YOLO 检测处理后的彩色图" loading="lazy"><figcaption class="body"><h4>④ YOLO 后处理 · 检测图</h4><p><code>/spot_0/front_cam/detection_image</code>，<code>bgr8</code>。本帧无明显检测框；这说明后处理图已发布，不说明识别到了目标。</p></figcaption></figure>
+        <figure class="sample wide"><img src="assets/spot-lidar-topdown.png" alt="Spot RTX LiDAR 点云投影到 XY 平面的俯视示意" loading="lazy"><figcaption class="body"><h4>⑤ RTX LiDAR · 点云</h4><p><code>/spot_0/lidar/point_cloud</code> 的一个样本含 191,129 个有效点。这张图把点云投影到 XY 平面、裁剪到 ±15 m，中心红点表示雷达原点；它是阅读辅助图，不是雷达原始图像。</p></figcaption></figure>
+      </div>
+      <h3>同一场景下的 Go2</h3>
+      <p>Go2 的相机安装位置和机器人姿态与 Spot 不同，所以构图不同。以下图片来自 Go2 完整主程序的稳定帧，而非独立传感器测试。</p>
+      <div class="samples">
+        <figure class="sample"><img src="assets/go2-color.png" alt="Go2 前置相机采集的障碍物场景彩色图" loading="lazy"><figcaption class="body"><h4>Go2 彩色相机</h4><p><code>/unitree_go2_0/front_cam/color_image</code>，<code>rgb8</code>，480×640×3。</p></figcaption></figure>
+        <figure class="sample"><img src="assets/go2-lidar-topdown.png" alt="Go2 RTX LiDAR 点云投影到 XY 平面的俯视示意" loading="lazy"><figcaption class="body"><h4>Go2 点云俯视</h4><p><code>/unitree_go2_0/lidar/point_cloud</code> 的这次样本含 205,313 个有效点；图示仍采用 ±15 m 的 XY 投影。</p></figcaption></figure>
+      </div>
+      <p class="mini">Go2 同次采样的其他图像：<a href="assets/go2-depth.png">深度伪彩色</a>、<a href="assets/go2-semantic.png">语义分割</a>、<a href="assets/go2-detection.png">YOLO 后处理图</a>。</p>
+      <div class="callout"><p><strong>判读顺序：</strong>先确认彩色图内容可辨，再看深度图是否体现近远层次；语义图应有不同区域；检测图不要求每帧有框；点云应有空间结构。只有 <code>topic list</code> 能看到名称，不能证明图像有内容，因此还要看画面或消息字段。</p></div>
+    </section>
+
+    <section id="manual">
+      <h2>05 · 你可以怎样人工自验证</h2>
+      <p class="lead">以下命令针对当前机器上的安装路径。开三个终端；不要在 <code>go2_codex</code> 中重新安装 README 的全部依赖，以免覆盖已匹配的版本。</p>
+      <div class="terminal-label">终端 A · 启动仿真（默认 Spot）</div>
+      <pre><code>source /data/anaconda3/etc/profile.d/conda.sh
+conda activate go2_codex
+source /data/apps/ros2-humble/activate_sim.sh
+cd /data/projects/Sim2Real/1029_4.5/Go2_Isaac_ros2
+OMNI_KIT_ACCEPT_EULA=yes python main.py</code></pre>
+      <p>等待 Isaac Sim 窗口显示障碍物场景与机器人。终端日志应出现 <code>Simulation App Startup Complete</code>、<code>Loaded JIT checkpoint.</code>，之后程序保持运行。首次启动可能较慢，因为 RTX 着色器需要编译。</p>
+      <div class="terminal-label">终端 B · 检查 ROS2 消息是否真正流动</div>
+      <pre><code>source /data/apps/ros2-humble/activate_sim.sh
+ros2 node list
+ros2 topic list
+ros2 param get /robot_data_manager use_sim_time
+ros2 topic hz /spot_0/front_cam/color_image
+ros2 topic echo --once /spot_0/front_cam/color_image --field height
+ros2 topic echo --once /spot_0/front_cam/color_image --field encoding
+ros2 topic echo --once /spot_0/lidar/point_cloud --field width
+ros2 topic echo --once /spot_0/odom --field pose.pose.position</code></pre>
+      <p>期望出现 <code>/robot_data_manager</code>、<code>/spot_0/...</code> 话题，<code>use_sim_time=True</code>；彩色图高度应为 <code>480</code>，编码 <code>rgb8</code>；点云宽度应大于 0。<code>topic hz</code> 应持续打印频率，按 Ctrl+C 结束该命令。</p>
+      <div class="terminal-label">终端 C · 在桌面显示会话打开 RViz</div>
+      <pre><code>source /data/apps/ros2-humble/activate_sim.sh
+cd /data/projects/Sim2Real/1029_4.5/Go2_Isaac_ros2
+rviz2 -d rviz/spot.rviz</code></pre>
+      <p>在 RViz 左侧检查 <strong>Fixed Frame = map</strong>，观察 <code>color_image</code>、<code>depth_image</code>、<code>lidar_point_cloud</code> 和 <code>spot pose</code>。若图像未显示，点击 <strong>Add → Image</strong>，手动选择 <code>/spot_0/front_cam/color_image</code>；点云选择 <strong>PointCloud2</strong>。预设 <code>depth_cloud</code> 没有对应发布话题，可禁用该 Display。</p>
+      <div class="checks">
+        <div class="panel"><h4>键盘控制</h4><p>点击 Isaac Sim 窗口让视口获得焦点，短按 W 前进、S 后退、A/D 横移、Z/C 转向；松键后速度指令清零。<code>camera_follow: true</code> 会让视角跟随机器人。</p></div>
+        <div class="panel"><h4>切换 Go2</h4><p>停止 Spot 仿真后，将 <a href="../cfg/sim.yaml">cfg/sim.yaml</a> 的 <code>robot: spot</code> 改为 <code>robot: go2</code>，再按终端 A 的原命令启动。终端 B/C 的话题前缀换为 <code>/unitree_go2_0</code>，RViz 配置换为 <code>rviz/go2.rviz</code>。测试完可把 YAML 改回 Spot。当前入口不支持 <code>python main.py robot=go2</code>。</p></div>
+      </div>
+      <div class="callout warn"><p><strong>远程或离屏会话：</strong>RViz 依赖桌面 GLX 窗口。把 <code>QT_QPA_PLATFORM=offscreen</code> 强加给 RViz 会触发 <code>Invalid parentWindowHandle</code>；应在真实桌面会话中运行。本机使用 <code>DISPLAY=:1</code> 已成功启动 RViz 并识别 OpenGL 4.6。</p></div>
+    </section>
+
+    <section id="debug">
+      <h2>06 · 调试顺序与常见故障</h2>
+      <p class="lead">按层排查，别从 RViz 黑屏直接推断渲染失败：先看仿真进程，再看 ROS2 发布，再看 RViz 显示。</p>
+      <div class="table-wrap"><table><thead><tr><th>现象</th><th>先检查</th><th>解释 / 下一步</th></tr></thead><tbody>
+        <tr><td>Isaac Sim 窗口打不开或 RTX 崩溃</td><td><code>nvidia-smi</code>；主程序日志</td><td>本机已换为 570.144 驱动。确认能列出 RTX 3090；首次着色器编译可能需要数分钟。</td></tr>
+        <tr><td><code>ModuleNotFoundError: isaacsim.sensors</code></td><td>确认 Isaac Sim 4.5 环境、相机扩展启用</td><td>独立传感器脚本需要启用 <code>isaacsim.sensors.camera</code> 与 <code>isaacsim.sensors.rtx</code>；不要用系统 Python 跑 Isaac Sim 模块。</td></tr>
+        <tr><td>地形生成时报 <code>turbo</code> 色图错误</td><td><code>python -c 'import trimesh; print(trimesh.__version__)'</code></td><td>此环境固定使用 <code>trimesh 4.6.4</code>，避免新版本移除该映射后的兼容问题。</td></tr>
+        <tr><td>有话题名但没有图像/点云</td><td><code>ros2 topic hz</code>、<code>echo --field</code>；传感器 render product</td><td>话题注册与产生有效帧是两回事；检查仿真是否仍在播放、GPU 是否完成渲染及发布开关。</td></tr>
+        <tr><td>RViz 空白、红色状态或缺少深度点云</td><td>Fixed Frame、Topic、TF、Display 状态</td><td>用 <code>map</code> 坐标系；必要时手动 Add。<code>depth_cloud</code> 是预设遗留项，当前代码未发布。</td></tr>
+        <tr><td>YOLO 检测图无方框</td><td>先看彩色图内容，再看 <code>/detections</code></td><td>检测图已发布也可能没有符合阈值的目标。默认障碍柱场景未必属于 YOLOv8n 的识别类别。</td></tr>
+        <tr><td>ROS2 CLI 报缺 <code>packaging</code> 或 <code>lark</code></td><td><code>ros2 launch --help</code></td><td>ROS2 CLI 使用系统 Python；本机已在对应 Python 路径补齐两项依赖。</td></tr>
+        <tr><td>主动结束仿真时出现 <code>Unable to create ROS2 node</code></td><td>确认报错时间与程序退出时间是否相同</td><td>本次 Spot 定时结束时出现该 OmniGraph 信息，但此前已采到有效 ROS2 消息。若它在持续运行阶段出现且无数据，再检查桥接扩展与节点命名空间。</td></tr>
+      </tbody></table></div>
+      <h3>建议观察的日志节点</h3>
+      <pre><code># 在仿真运行时另开终端
+nvidia-smi
+source /data/apps/ros2-humble/activate_sim.sh
+ros2 topic info /spot_0/front_cam/color_image -v
+ros2 topic info /spot_0/lidar/point_cloud -v
+ros2 topic hz /spot_0/front_cam/depth_image</code></pre>
+      <p class="muted">如果只是要缩小范围，先将“仿真窗口是否有场景”“ROS2 图像高度与点云宽度是否有效”“RViz 是否选对话题”分别记录。这样能定位问题是在 GPU/Isaac、桥接还是显示端。</p>
+    </section>
+
+    <section id="verified">
+      <h2>07 · 本轮实际验证范围</h2>
+      <div class="table-wrap"><table><thead><tr><th>项目</th><th>状态</th><th>实际证据</th></tr></thead><tbody>
+        <tr><td>Isaac Sim 4.5 + Isaac Lab 2.1.1 + GPU</td><td><span class="tag">通过</span></td><td>RTX 3090 / 驱动 570.144；主程序启动并加载 Spot 策略。</td></tr>
+        <tr><td>Spot 与 Go2 传感器</td><td><span class="tag">通过</span></td><td>各自 480×640 RGB 帧与 RTX LiDAR 数据；两套主程序均采集到 ROS2 图像与点云。</td></tr>
+        <tr><td>默认 Spot 主程序与 ROS2</td><td><span class="tag">通过</span></td><td>运行中收到了彩色、深度、语义、检测图、点云、里程计、时钟等消息；本页为二次采样。</td></tr>
+        <tr><td>RViz 图形程序</td><td><span class="tag partial">部分</span></td><td>在本机桌面会话加载 <code>spot.rviz</code> 并识别 OpenGL 4.6；未与仿真同时做人工目视检查。</td></tr>
+        <tr><td>Go2 主程序与 ROS2</td><td><span class="tag">通过</span></td><td>启动、生成障碍地形，收到彩色、深度、语义、检测图、点云和里程计消息。</td></tr>
+        <tr><td>键盘运动</td><td><span class="tag partial">待人工检查</span></td><td>已核对按键回调代码；尚未目视确认按键后的机器人运动。</td></tr>
+        <tr><td>ros-mcp-server / Web Portal</td><td><span class="tag none">未测试</span></td><td>可选子系统；需要另行启动 rosbridge、MCP 或 Gradio。</td></tr>
+      </tbody></table></div>
+      <p class="mini">采样细节保存在 <a href="assets/spot-capture-meta.json">Spot 采样记录</a>和 <a href="assets/go2-capture-meta.json">Go2 采样记录</a>。截图来自 2026-10-29 的 obstacle 场景运行；之后若调整场景、相机安装位姿或光照，画面会变化。</p>
+    </section>
+    <footer>文档依据当前仓库源码、README 与本机实测生成。HTML 不依赖外部脚本或互联网；图片及源码链接均相对仓库路径。Snap 版 Chromium 若不能读取 /data，请通过本机 HTTP 服务查看。</footer>
+  </main>
+</div>
+</body>
+</html>
