@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200" role="img" aria-labelledby="title desc">
+  <title id="title">Go2 ROS 2 十二维关节力矩控制导航评测架构</title>
+  <desc id="desc">本地 ROS 2 导航系统接收 Isaac Sim 的传感器与状态，导航控制器计算关节力矩，经控制接口送入 Isaac Sim 仿真环境。仿真环境施加力矩、推进物理并返回新状态。评测器记录任务与真值指标。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f8ff"/><stop offset="1" stop-color="#eaf3f5"/></linearGradient>
+    <linearGradient id="nav" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#183b67"/><stop offset="1" stop-color="#286c79"/></linearGradient>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#2864a8"/></marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#16816f"/></marker>
+    <marker id="arrowOrange" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#d47b21"/></marker>
+    <style>
+      text{font-family:"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#14263d}
+      .title{font-size:38px;font-weight:800}.subtitle{font-size:19px;fill:#53677d}
+      .zone{font-size:23px;font-weight:800;fill:#fff}.zoneSub{font-size:15px;fill:#dbeaf7}
+      .head{font-size:20px;font-weight:750}.body{font-size:16px;fill:#40536a}.small{font-size:14px;fill:#52677d}
+      .code{font-family:monospace;font-size:15px;fill:#143c6a}.white{fill:#fff}.note{font-size:15px;fill:#694e22}
+    </style>
+  </defs>
+  <rect width="1800" height="1200" fill="url(#bg)"/>
+  <text x="70" y="67" class="title">Go2 导航评测：ROS 2 直接控制 12 个关节力矩</text>
+  <text x="72" y="103" class="subtitle">外部 ROS 2 接管导航与低层控制；Isaac Sim 保留机器人模型、执行器接口、传感器渲染和物理仿真，不调用原步态策略。</text>
+
+  <!-- zone headers -->
+  <rect x="70" y="145" width="510" height="64" rx="16" fill="url(#nav)"/>
+  <text x="94" y="184" class="zone">A · 本地 ROS 2：被测导航与控制</text>
+  <text x="94" y="203" class="zoneSub">建议使用实时控制节点隔离导航规划与力矩环</text>
+  <rect x="645" y="145" width="510" height="64" rx="16" fill="#315c85"/>
+  <text x="669" y="184" class="zone">B · ROS 2 交互与时间同步</text>
+  <text x="669" y="203" class="zoneSub">标准消息 + 自定义力矩消息 + 仿真时钟</text>
+  <rect x="1220" y="145" width="510" height="64" rx="16" fill="#286e66"/>
+  <text x="1244" y="184" class="zone">C · Isaac Sim：Go2 与物理仿真</text>
+  <text x="1244" y="203" class="zoneSub">由 ROS 力矩驱动关节，策略网络不参与</text>
+
+  <!-- ROS2 boxes -->
+  <rect x="90" y="255" width="210" height="112" rx="14" fill="#fff" stroke="#95abc5" stroke-width="2"/>
+  <text x="110" y="289" class="head">传感器接入</text><text x="110" y="319" class="body">RGB / 深度 / 点云</text><text x="110" y="344" class="body">Odometry / TF</text>
+  <rect x="340" y="255" width="210" height="112" rx="14" fill="#fff" stroke="#95abc5" stroke-width="2"/>
+  <text x="360" y="289" class="head">导航规划</text><text x="360" y="319" class="body">定位 / 建图 / Nav2</text><text x="360" y="344" class="body">目标位姿 → 路径</text>
+  <rect x="90" y="420" width="210" height="140" rx="14" fill="#fff" stroke="#d59a48" stroke-width="2"/>
+  <text x="110" y="454" class="head">低层控制器</text><text x="110" y="484" class="body">读取 q、q̇、目标</text><text x="110" y="509" class="body">计算 τ = π(q, q̇, …)</text><text x="110" y="537" class="small">算法由你选择 / 实现</text>
+  <rect x="340" y="420" width="210" height="140" rx="14" fill="#fff" stroke="#95abc5" stroke-width="2"/>
+  <text x="360" y="454" class="head">目标与评测管理</text><text x="360" y="484" class="body">NavigateToPose Action</text><text x="360" y="509" class="body">重置 / 超时 / 成功判定</text><text x="360" y="537" class="small">Run ID 与 rosbag 记录</text>
+  <rect x="90" y="620" width="460" height="100" rx="14" fill="#fff8eb" stroke="#d59a48" stroke-width="2"/>
+  <text x="113" y="655" class="head">关键职责分离</text><text x="113" y="685" class="body">Nav2 输出导航意图；低层控制器以高频计算 12 路关节力矩。</text>
+
+  <!-- transport boxes -->
+  <rect x="665" y="255" width="470" height="112" rx="14" fill="#fff" stroke="#85a5c7" stroke-width="2"/>
+  <text x="689" y="289" class="head">观测流：Isaac Sim → ROS 2</text>
+  <text x="689" y="319" class="code">/clock · /tf · /unitree_go2_0/odom</text>
+  <text x="689" y="345" class="code">.../front_cam/color_image · .../lidar/point_cloud</text>
+  <rect x="665" y="420" width="470" height="140" rx="14" fill="#fff" stroke="#d59a48" stroke-width="2"/>
+  <text x="689" y="454" class="head">控制流：ROS 2 → Isaac Sim</text>
+  <text x="689" y="485" class="code">/unitree_go2_0/joint_torque_cmd</text>
+  <text x="689" y="515" class="body">12 个带名称的关节力矩，单位 N·m</text>
+  <text x="689" y="541" class="small">每条命令带时间戳、序号、有效期与控制模式</text>
+  <rect x="665" y="620" width="470" height="100" rx="14" fill="#eef5ff" stroke="#85a5c7" stroke-width="2"/>
+  <text x="689" y="655" class="head">建议的低层接口频率</text>
+  <text x="689" y="685" class="body">先从 200 Hz 定周期控制开始；测量延迟、抖动和丢帧，再调整。</text>
+
+  <!-- simulation boxes -->
+  <rect x="1240" y="255" width="470" height="112" rx="14" fill="#fff" stroke="#83b4a8" stroke-width="2"/>
+  <text x="1264" y="289" class="head">传感器 / 状态发布</text>
+  <text x="1264" y="319" class="body">Camera / RTX LiDAR / 仿真真值</text>
+  <text x="1264" y="345" class="small">标明 frame_id、时间戳与 QoS</text>
+  <rect x="1240" y="420" width="470" height="140" rx="14" fill="#fff" stroke="#d59a48" stroke-width="2"/>
+  <text x="1264" y="454" class="head">关节力矩命令接收器</text>
+  <text x="1264" y="485" class="body">校验名称 / 数量 / 单位 / 时间 / 有效期</text>
+  <text x="1264" y="515" class="body">按明确关节顺序写入 effort command</text>
+  <text x="1264" y="541" class="small">过期、非法或未就绪 → 安全停止策略</text>
+  <rect x="1240" y="620" width="470" height="100" rx="14" fill="#edf8f3" stroke="#83b4a8" stroke-width="2"/>
+  <text x="1264" y="655" class="head">仿真物理推进</text>
+  <text x="1264" y="685" class="body">12 路力矩 → 电机/关节 → 接触与摩擦 → 新状态</text>
+
+  <!-- main data flow arrows -->
+  <path d="M300 300 H337" fill="none" stroke="#2864a8" stroke-width="4" marker-end="url(#arrowBlue)"/>
+  <text x="305" y="285" class="small">传感器</text>
+  <path d="M445 367 V417" fill="none" stroke="#2864a8" stroke-width="4" marker-end="url(#arrowBlue)"/>
+  <text x="455" y="397" class="small">目标速度 / 运动意图</text>
+  <path d="M550 490 H662" fill="none" stroke="#d47b21" stroke-width="5" marker-end="url(#arrowOrange)"/>
+  <text x="565" y="477" class="small">τ[12] 控制命令</text>
+  <path d="M1138 490 H1237" fill="none" stroke="#d47b21" stroke-width="5" marker-end="url(#arrowOrange)"/>
+  <text x="1144" y="477" class="small">发布力矩</text>
+  <path d="M1475 418 V370" fill="none" stroke="#16816f" stroke-width="5" marker-end="url(#arrowGreen)"/>
+  <text x="1490" y="397" class="small">物理状态反馈</text>
+  <path d="M1237 305 H1138" fill="none" stroke="#16816f" stroke-width="5" marker-end="url(#arrowGreen)"/>
+  <path d="M662 305 H553" fill="none" stroke="#16816f" stroke-width="5" marker-end="url(#arrowGreen)"/>
+  <text x="940" y="294" class="small">传感器 / 位姿 / /clock</text>
+
+  <!-- closed-loop timing section -->
+  <rect x="70" y="780" width="1660" height="250" rx="20" fill="#fff" stroke="#c6d5e5" stroke-width="2"/>
+  <text x="98" y="824" class="head">D · 每个控制周期的实时闭环（建议独立 ROS 2 控制节点，不在仿真主线程等待网络）</text>
+  <g>
+    <rect x="100" y="870" width="245" height="100" rx="13" fill="#eaf1ff" stroke="#9cb5d8" stroke-width="2"/>
+    <text x="123" y="905" class="head">① 读状态</text><text x="123" y="937" class="body">q、q̇、IMU / 足端</text><text x="123" y="960" class="small">同一时间戳 / 同一关节序</text>
+    <rect x="430" y="870" width="245" height="100" rx="13" fill="#eaf8f4" stroke="#93c7b8" stroke-width="2"/>
+    <text x="453" y="905" class="head">② 算控制律</text><text x="453" y="937" class="body">导航意图 + 状态</text><text x="453" y="960" class="small">计算 τ[12]，做限幅</text>
+    <rect x="760" y="870" width="245" height="100" rx="13" fill="#fff4e5" stroke="#e0b77f" stroke-width="2"/>
+    <text x="783" y="905" class="head">③ 发布命令</text><text x="783" y="937" class="body">stamp + seq + valid_for</text><text x="783" y="960" class="small">控制回路按固定周期运行</text>
+    <rect x="1090" y="870" width="245" height="100" rx="13" fill="#fff4e5" stroke="#e0b77f" stroke-width="2"/>
+    <text x="1113" y="905" class="head">④ 仿真安全接收</text><text x="1113" y="937" class="body">校验、限幅、应用 τ</text><text x="1113" y="960" class="small">过期/丢包触发 watchdog</text>
+    <rect x="1420" y="870" width="245" height="100" rx="13" fill="#edf8f3" stroke="#93c7b8" stroke-width="2"/>
+    <text x="1443" y="905" class="head">⑤ 推进并反馈</text><text x="1443" y="937" class="body">物理步进 → 新 q、q̇</text><text x="1443" y="960" class="small">下一周期继续闭环</text>
+    <path d="M346 920 H427" stroke="#2864a8" stroke-width="4" marker-end="url(#arrowBlue)"/>
+    <path d="M676 920 H757" stroke="#2864a8" stroke-width="4" marker-end="url(#arrowBlue)"/>
+    <path d="M1006 920 H1087" stroke="#d47b21" stroke-width="4" marker-end="url(#arrowOrange)"/>
+    <path d="M1336 920 H1417" stroke="#16816f" stroke-width="4" marker-end="url(#arrowGreen)"/>
+  </g>
+  <text x="100" y="1008" class="small">要点：ROS 2 负责消息传输，不自动保证实时调度。控制周期、超时策略、仿真同步点和力矩安全限幅都必须由系统明确实现。</text>
+
+  <!-- bottom warnings -->
+  <rect x="70" y="1060" width="1660" height="95" rx="15" fill="#fff4e8" stroke="#dfb06e" stroke-width="2"/>
+  <text x="98" y="1097" class="head">实施前必须验证</text>
+  <text x="285" y="1097" class="body">① 从 UNITREE_GO2_CFG 核实 12 个关节名、顺序和 effort 接口</text>
+  <text x="285" y="1128" class="body">② 关节扭矩限幅 / 过期命令 watchdog / reset 与 emergency stop</text>
+  <text x="1010" y="1097" class="body">③ 同步策略：墙钟实时步进，或仿真步进握手</text>
+  <text x="1010" y="1128" class="body">④ Nav2 一般输出速度，不输出关节力矩；导航与低层控制要分层</text>
+  <text x="70" y="1184" class="small">设计建议：ROS 2 定义自有带名称的力矩消息；初期优先单机器人、单一控制写入者，并记录命令与实际关节状态。</text>
+</svg>
